@@ -27,7 +27,7 @@ impl AsepriteTag {
 #[derive(Debug, Component, PartialEq, Eq)]
 pub struct AsepriteAnimation {
     pub is_playing: bool,
-    tag: Option<String>,
+    pub tag: Option<String>,
     pub current_frame: usize,
     forward: bool,
     time_elapsed: Duration,
@@ -196,10 +196,6 @@ impl AsepriteAnimation {
     /// Toggle state between playing and pausing
     pub fn toggle(&mut self) {
         self.is_playing = !self.is_playing;
-    }
-
-    pub fn tag(&self) -> &Option<String> {
-        &self.tag
     }
 }
 
