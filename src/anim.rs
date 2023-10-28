@@ -197,6 +197,10 @@ impl AsepriteAnimation {
     pub fn toggle(&mut self) {
         self.is_playing = !self.is_playing;
     }
+
+    pub fn tag(&self) -> &Option<String> {
+        &self.tag
+    }
 }
 
 pub(crate) fn update_animations(
