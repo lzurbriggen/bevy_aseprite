@@ -24,6 +24,20 @@ impl AsepriteTag {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum AnimationEndFrame {
+    #[default]
+    First,
+    Last,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum AnimationPlayMode {
+    #[default]
+    Loop,
+    Once(AnimationEndFrame),
+}
+
 #[derive(Debug, Component, PartialEq, Eq)]
 pub struct AsepriteAnimation {
     pub is_playing: bool,
@@ -32,17 +46,19 @@ pub struct AsepriteAnimation {
     forward: bool,
     time_elapsed: Duration,
     tag_changed: bool,
+    pub play_mode: AnimationPlayMode,
 }
 
 impl Default for AsepriteAnimation {
     fn default() -> Self {
         Self {
             is_playing: true,
-            tag: Default::default(),
-            current_frame: Default::default(),
-            forward: Default::default(),
-            time_elapsed: Default::default(),
+            tag: default(),
+            current_frame: default(),
+            forward: default(),
+            time_elapsed: default(),
             tag_changed: true,
+            play_mode: default(),
         }
     }
 }
@@ -80,6 +96,37 @@ impl AsepriteAnimation {
         }
     }
 
+    // TODO: confusing name, confusing return val, rework this shit
+    fn stop_if_ended(
+        &mut self,
+        anim_dir: reader::raw::AsepriteAnimationDirection,
+        range: &core::ops::Range<u16>,
+    ) -> bool {
+        if let AnimationPlayMode::Once(end_frame) = &self.play_mode {
+            use reader::raw::AsepriteAnimationDirection;
+            let end_frame_for_dir = match anim_dir {
+                AsepriteAnimationDirection::Forward => match end_frame {
+                    AnimationEndFrame::First => range.start as usize,
+                    AnimationEndFrame::Last => range.end as usize - 1,
+                },
+                AsepriteAnimationDirection::Reverse => match end_frame {
+                    AnimationEndFrame::First => range.end as usize - 1,
+                    AnimationEndFrame::Last => range.start as usize,
+                },
+                AsepriteAnimationDirection::PingPong => match end_frame {
+                    AnimationEndFrame::First => range.start as usize,
+                    AnimationEndFrame::Last => range.end as usize - 1,
+                },
+            };
+
+            self.is_playing = false;
+            self.current_frame = end_frame_for_dir;
+
+            return true;
+        }
+        false
+    }
+
     fn next_frame(&mut self, info: &AsepriteInfo) {
         match &self.tag {
             Some(tag) => {
@@ -92,28 +139,35 @@ impl AsepriteAnimation {
                 };
 
                 let range = tag.frames.clone();
+                use reader::raw::AsepriteAnimationDirection;
                 match tag.animation_direction {
-                    reader::raw::AsepriteAnimationDirection::Forward => {
+                    AsepriteAnimationDirection::Forward => {
                         let next_frame = self.current_frame + 1;
                         if range.contains(&(next_frame as u16)) {
                             self.current_frame = next_frame;
                         } else {
-                            self.current_frame = range.start as usize;
+                            if !self.stop_if_ended(tag.animation_direction, &range) {
+                                self.current_frame = range.start as usize;
+                            }
                         }
                     }
-                    reader::raw::AsepriteAnimationDirection::Reverse => {
+                    AsepriteAnimationDirection::Reverse => {
                         let next_frame = self.current_frame.checked_sub(1);
                         if let Some(next_frame) = next_frame {
                             if range.contains(&((next_frame) as u16)) {
                                 self.current_frame = next_frame;
                             } else {
-                                self.current_frame = range.end as usize - 1;
+                                if !self.stop_if_ended(tag.animation_direction, &range) {
+                                    self.current_frame = range.end as usize - 1;
+                                }
                             }
                         } else {
-                            self.current_frame = range.end as usize - 1;
+                            if !self.stop_if_ended(tag.animation_direction, &range) {
+                                self.current_frame = range.end as usize - 1;
+                            }
                         }
                     }
-                    reader::raw::AsepriteAnimationDirection::PingPong => {
+                    AsepriteAnimationDirection::PingPong => {
                         if self.forward {
                             let next_frame = self.current_frame + 1;
                             if range.contains(&(next_frame as u16)) {
@@ -129,8 +183,11 @@ impl AsepriteAnimation {
                                     self.current_frame = next_frame
                                 }
                             }
-                            self.current_frame += 1;
-                            self.forward = true;
+                            // TODO: only makes sense if pingpong starts playing forwards
+                            if !self.stop_if_ended(tag.animation_direction, &range) {
+                                self.current_frame += 1;
+                                self.forward = true;
+                            }
                         }
                     }
                 }
