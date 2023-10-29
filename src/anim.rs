@@ -203,26 +203,23 @@ impl AsepriteAnimation {
     }
 
     // Returns whether the frame was changed
-    pub fn update(&mut self, info: &AsepriteInfo, dt: Duration) -> bool {
+    pub fn update(&mut self, info: &AsepriteInfo, dt: Duration) {
         if self.tag_changed {
             self.reset(info);
-            return true;
+            return;
         }
 
         if self.is_paused() {
-            return false;
+            return;
         }
 
         self.time_elapsed += dt;
         let mut current_frame_duration = self.current_frame_duration(info);
-        let mut frame_changed = false;
         while self.time_elapsed >= current_frame_duration {
             self.time_elapsed -= current_frame_duration;
             self.next_frame(info);
             current_frame_duration = self.current_frame_duration(info);
-            frame_changed = true;
         }
-        frame_changed
     }
 
     /// Get the current frame
@@ -280,9 +277,8 @@ pub(crate) fn update_animations(
                 continue;
             }
         };
-        if animation.update(info, time.delta()) {
-            sprite.index = aseprite.frame_to_idx[animation.current_frame];
-        }
+        animation.update(info, time.delta());
+        sprite.index = aseprite.frame_to_idx[animation.current_frame];
     }
 }
 
